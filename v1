@@ -221,7 +221,7 @@
 
     <script>
         // 設定
-        const GAS_URL = 'YOUR_GAS_DEPLOYMENT_URL';
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzsZJkfavdbz2F8voZWs8RTQ86vcibKPS9T24B9LIX__JraRF8CHr8SIEBqgLe0KvzwsA/exec';
         let currentDate = new Date();
         let events = [];
         let currentUser = localStorage.getItem('calendar_user') || '';
