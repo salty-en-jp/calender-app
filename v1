@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シンプルカレンダー</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            border: none;
+            background: #e9ecef;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .tab.active {
+            background: #007bff;
+            color: white;
+        }
+        .tab:hover {
+            background: #dee2e6;
+        }
+        .tab.active:hover {
+            background: #0056b3;
+        }
+        .content {
+            display: none;
+        }
+        .content.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background: #ddd;
+            border: 1px solid #ddd;
+        }
+        .calendar-header {
+            background: #f8f9fa;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .calendar-day {
+            background: white;
+            padding: 10px;
+            min-height: 80px;
+            vertical-align: top;
+        }
+        .calendar-day.other-month {
+            background: #f8f9fa;
+            color: #6c757d;
+        }
+        .event {
+            background: #e3f2fd;
+            padding: 2px 5px;
+            margin: 1px 0;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .event:hover {
+            background: #bbdefb;
+        }
+        .auth-section {
+            text-align: center;
+            padding: 40px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .month-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .month-nav button {
+            padding: 5px 10px;
+        }
+        #status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>シンプルカレンダー</h1>
+            <div id="auth-status">
+                <button id="auth-btn" class="btn" onclick="authenticate()">開始</button>
+                <span id="user-info" style="display:none;"></span>
+            </div>
+        </div>
+
+        <div id="status"></div>
+
+        <div id="main-content" style="display:none;">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('input')">入力</button>
+                <button class="tab" onclick="switchTab('calendar')">カレンダー</button>
+            </div>
+
+            <!-- 入力タブ -->
+            <div id="input-content" class="content active">
+                <h2>イベント入力</h2>
+                <form id="event-form">
+                    <div class="form-group">
+                        <label for="title">タイトル</label>
+                        <input type="text" id="title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="date">日付</label>
+                        <input type="date" id="date" name="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="time">時間</label>
+                        <input type="time" id="time" name="time">
+                    </div>
+                    <div class="form-group">
+                        <label for="description">説明</label>
+                        <textarea id="description" name="description"></textarea>
+                    </div>
+                    <button type="submit" class="btn">追加</button>
+                </form>
+            </div>
+
+            <!-- カレンダータブ -->
+            <div id="calendar-content" class="content">
+                <h2>カレンダー</h2>
+                <div class="month-nav">
+                    <button class="btn" onclick="previousMonth()">◀ 前月</button>
+                    <h3 id="current-month"></h3>
+                    <button class="btn" onclick="nextMonth()">次月 ▶</button>
+                </div>
+                <div class="calendar-grid" id="calendar-grid">
+                    <!-- カレンダーがここに生成される -->
+                </div>
+            </div>
+        </div>
+
+        <div id="auth-required" class="auth-section">
+            <h2>ユーザー認証</h2>
+            <p>シンプルな認証でカレンダーを使用できます。</p>
+        </div>
+    </div>
+
+    <script>
+        // 設定
+        const GAS_URL = 'YOUR_GAS_DEPLOYMENT_URL';
+        let currentDate = new Date();
+        let events = [];
+        let currentUser = localStorage.getItem('calendar_user') || '';
+        let isAuthenticated = !!currentUser;
+
+        // 初期状態設定
+        if (isAuthenticated) {
+            document.getElementById('main-content').style.display = 'block';
+            document.getElementById('auth-required').style.display = 'none';
+            document.getElementById('auth-btn').textContent = 'ログアウト';
+            document.getElementById('auth-btn').onclick = logout;
+            document.getElementById('user-info').textContent = `ユーザー: ${currentUser}`;
+            document.getElementById('user-info').style.display = 'inline';
+            loadEvents();
+        }
+
+        // 認証
+        function authenticate() {
+            const username = prompt('ユーザー名を入力してください:');
+            if (username && username.trim()) {
+                currentUser = username.trim();
+                localStorage.setItem('calendar_user', currentUser);
+                isAuthenticated = true;
+                
+                document.getElementById('main-content').style.display = 'block';
+                document.getElementById('auth-required').style.display = 'none';
+                document.getElementById('auth-btn').textContent = 'ログアウト';
+                document.getElementById('auth-btn').onclick = logout;
+                document.getElementById('user-info').textContent = `ユーザー: ${currentUser}`;
+                document.getElementById('user-info').style.display = 'inline';
+                
+                loadEvents();
+                showStatus('ログインしました', 'success');
+            }
+        }
+
+        // ログアウト
+        function logout() {
+            localStorage.removeItem('calendar_user');
+            currentUser = '';
+            isAuthenticated = false;
+            events = [];
+            
+            document.getElementById('main-content').style.display = 'none';
+            document.getElementById('auth-required').style.display = 'block';
+            document.getElementById('auth-btn').textContent = '開始';
+            document.getElementById('auth-btn').onclick = authenticate;
+            document.getElementById('user-info').style.display = 'none';
+            
+            showStatus('ログアウトしました', 'success');
+        }
+
+        // タブ切り替え
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+            
+            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`${tab}-content`).classList.add('active');
+            
+            if (tab === 'calendar') {
+                renderCalendar();
+            }
+        }
+
+        // イベント追加
+        document.getElementById('event-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                action: 'addEvent',
+                user: currentUser,
+                title: document.getElementById('title').value,
+                date: document.getElementById('date').value,
+                time: document.getElementById('time').value,
+                description: document.getElementById('description').value
+            };
+
+            fetch(GAS_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus('イベントを追加しました', 'success');
+                    document.getElementById('event-form').reset();
+                    loadEvents();
+                } else {
+                    showStatus('エラー: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showStatus('送信エラーが発生しました', 'error');
+            });
+        });
+
+        // イベント読み込み
+        function loadEvents() {
+            fetch(GAS_URL + `?action=getEvents&user=${encodeURIComponent(currentUser)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        events = data.events || [];
+                        renderCalendar();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading events:', error);
+                });
+        }
+
+        // カレンダー描画
+        function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            
+            document.getElementById('current-month').textContent = 
+                `${year}年${month + 1}月`;
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startDate = new Date(firstDay);
+            startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+
+            // 曜日ヘッダー
+            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+            weekdays.forEach(day => {
+                const header = document.createElement('div');
+                header.className = 'calendar-header';
+                header.textContent = day;
+                grid.appendChild(header);
+            });
+
+            // カレンダーの日付
+            for (let i = 0; i < 42; i++) {
+                const date = new Date(startDate);
+                date.setDate(startDate.getDate() + i);
+                
+                const dayElement = document.createElement('div');
+                dayElement.className = 'calendar-day';
+                
+                if (date.getMonth() !== month) {
+                    dayElement.classList.add('other-month');
+                }
+                
+                dayElement.innerHTML = `<div>${date.getDate()}</div>`;
+                
+                // その日のイベントを表示
+                const dayEvents = events.filter(event => {
+                    const eventDate = new Date(event.date);
+                    return eventDate.toDateString() === date.toDateString();
+                });
+                
+                dayEvents.forEach(event => {
+                    const eventElement = document.createElement('div');
+                    eventElement.className = 'event';
+                    eventElement.textContent = event.title;
+                    eventElement.title = event.description || '';
+                    dayElement.appendChild(eventElement);
+                });
+                
+                grid.appendChild(dayElement);
+            }
+        }
+
+        // 月移動
+        function previousMonth() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        }
+
+        function nextMonth() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        }
+
+        // ステータス表示
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status-${type}`;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+
+        // 初期化
+        window.onload = function() {
+            document.getElementById('date').valueAsDate = new Date();
+        };
+    </script>
+</body>
+</html>
